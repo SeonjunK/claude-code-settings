@@ -23,10 +23,12 @@ allowed-tools:
 ## Step 0 — Setup
 
 ```!
-cd "$CLAUDE_PROJECT_DIR" && team-loops start "$ARGUMENTS"
+"${CLAUDE_PLUGIN_ROOT}/bin/claude-code-hooks" start "$ARGUMENTS"
 ```
 
 이 명령은 세션 파일을 생성하고 초기 설정을 반환합니다.
+
+`vibe.json`에 notifications가 설정되어 있으면 세션 시작 알림이 자동 전송됩니다.
 
 ## Step 1 — TeamCreate
 
@@ -41,16 +43,10 @@ TeamCreate({
 
 ## Step 2 — Spawn Teammates
 
-team-loops CLI로 teammate spawn:
-
-```!
-TEAMMATES=$(cd "$CLAUDE_PROJECT_DIR" && team-loops spawn --goal "$GOAL" --roles impl,quality,docs)
-```
-
 각 teammate에 대해 Agent tool 호출:
 ```javascript
 Agent({
-  subagent_type: "<from TEAMMATES>",
+  subagent_type: "<role>",  // impl, quality, docs, security, refactor, ui-ux, idea
   prompt: "...",
   team_name: "<team_name>",
   name: "<teammate_name>",
@@ -61,14 +57,23 @@ Agent({
 ## Step 3 — Monitor
 
 ```!
-cd "$CLAUDE_PROJECT_DIR" && team-loops status
+"${CLAUDE_PLUGIN_ROOT}/bin/claude-code-hooks" status
 ```
 
-## Step 4 — Shutdown
+Telegram bot이 실행 중이면 `/status`, `/tasks` 명령으로도 조회 가능합니다.
+
+## Step 4 — Notify (선택)
+
+수동 알림이 필요한 경우:
+```shell
+"${CLAUDE_PLUGIN_ROOT}/bin/claude-code-hooks" notify task_complete -m "API 응답 포맷 수정 완료"
+```
+
+## Step 5 — Shutdown
 
 완료 시:
 ```!
-cd "$CLAUDE_PROJECT_DIR" && team-loops stop --reason "completed"
+"${CLAUDE_PLUGIN_ROOT}/bin/claude-code-hooks" stop-session --reason "completed"
 ```
 
 ---
@@ -279,7 +284,7 @@ task 완료 직후 필요한 범위의 검증 task를 만듭니다.
 ### Global Verify
 
 idle 직전에는 전역 검증이 필요합니다.
-최종 gate는 기존 `Stop`/`SubagentStop` command hook인 `verify.sh`가 맡습니다.
+최종 gate는 `Stop`/`SubagentStop` hook의 `claude-code-hooks verify`가 맡습니다.
 
 verify 실패 규칙:
 

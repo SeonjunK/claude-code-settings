@@ -1,1 +1,5 @@
 bin/
+vibe-guard/bin/
+vibe-format/bin/
+vibe-verify/bin/
+vibe-loops/bin/

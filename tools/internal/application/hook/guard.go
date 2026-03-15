@@ -2,66 +2,23 @@
 package hook
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/SeonjunK/claude-code-settings/tools/internal/infrastructure/config"
 )
-
-// GuardConfig represents the guard.json configuration.
-type GuardConfig struct {
-	Read struct {
-		BlockedPatterns []string `json:"blockedPatterns"`
-	} `json:"read"`
-	Write struct {
-		BlockedPatterns []string `json:"blockedPatterns"`
-	} `json:"write"`
-	Bash struct {
-		BlockedCommands []string `json:"blockedCommands"`
-		BlockedPatterns []string `json:"blockedPatterns"`
-	} `json:"bash"`
-}
-
-// LoadGuardConfig loads guard configuration from the project directory.
-// Looks for guard.json in:
-//  1. $projectDir/.claude/guard.json (legacy path)
-//  2. $projectDir/guard.json (plugin path)
-func LoadGuardConfig(projectDir string) (*GuardConfig, error) {
-	paths := []string{
-		filepath.Join(projectDir, ".claude", "guard.json"),
-		filepath.Join(projectDir, "guard.json"),
-	}
-
-	var data []byte
-	var lastErr error
-	for _, path := range paths {
-		data, lastErr = os.ReadFile(path)
-		if lastErr == nil {
-			break
-		}
-	}
-	if lastErr != nil {
-		return nil, fmt.Errorf("guard.json not found in %s: %w", projectDir, lastErr)
-	}
-
-	var cfg GuardConfig
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse guard.json: %w", err)
-	}
-	return &cfg, nil
-}
 
 // CheckFileAccess checks whether a file access should be blocked.
 // mode should be "read" or "write".
 // Returns a non-empty block message if access should be denied, or "" to allow.
-func CheckFileAccess(cfg *GuardConfig, mode, filePath string) string {
+func CheckFileAccess(guard *config.GuardConfig, mode, filePath string) string {
 	var patterns []string
 	switch mode {
 	case "read":
-		patterns = cfg.Read.BlockedPatterns
+		patterns = guard.Read.BlockedPatterns
 	case "write":
-		patterns = cfg.Write.BlockedPatterns
+		patterns = guard.Write.BlockedPatterns
 	default:
 		return ""
 	}
@@ -89,18 +46,18 @@ func CheckFileAccess(cfg *GuardConfig, mode, filePath string) string {
 
 // CheckBashCommand checks whether a bash command should be blocked.
 // Returns a non-empty block message if the command should be denied, or "" to allow.
-func CheckBashCommand(cfg *GuardConfig, command string) string {
+func CheckBashCommand(guard *config.GuardConfig, command string) string {
 	trimmed := strings.TrimSpace(command)
 
 	// Check exact match against blockedCommands
-	for _, blocked := range cfg.Bash.BlockedCommands {
+	for _, blocked := range guard.Bash.BlockedCommands {
 		if trimmed == blocked {
 			return fmt.Sprintf("Command blocked: %s is blocked by guard policy", trimmed)
 		}
 	}
 
 	// Check contains match against blockedPatterns
-	for _, pattern := range cfg.Bash.BlockedPatterns {
+	for _, pattern := range guard.Bash.BlockedPatterns {
 		if strings.Contains(command, pattern) {
 			return fmt.Sprintf("Command blocked: matches pattern %s", pattern)
 		}
@@ -110,9 +67,9 @@ func CheckBashCommand(cfg *GuardConfig, command string) string {
 }
 
 // DenyOutput creates a PreToolUse deny output conforming to Claude Code hook schema.
-func DenyOutput(message string) map[string]interface{} {
-	return map[string]interface{}{
-		"hookSpecificOutput": map[string]interface{}{
+func DenyOutput(message string) map[string]any {
+	return map[string]any{
+		"hookSpecificOutput": map[string]any{
 			"hookEventName":      "PreToolUse",
 			"permissionDecision": "deny",
 		},

@@ -6,87 +6,76 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/SeonjunK/claude-code-settings/tools/internal/domain/notification"
 )
 
-// sessionStartCmd represents the session-start hook command.
-var sessionStartCmd = &cobra.Command{
-	Use:   "session-start",
-	Short: "Handle session-start hook",
-	Long: `Handle session-start hook when called from a Claude Code hook.
+// NewSessionStartCmd creates the session-start hook command.
+func NewSessionStartCmd(deps *Deps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "session-start",
+		Short: "Handle session-start hook",
+		Long: `Handle session-start hook when called from a Claude Code hook.
 
-Validates the environment (jq, uv, guard.json) and outputs additionalContext.
+Validates the environment (jq, uv, vibe.json) and outputs additionalContext.
 
 Input stdin: {"session_id": "...", "source": "startup|resume|...", ...}
 
 Output (always exit 0):
-  {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "jq=ok uv=ok guard.json=ok"}}`,
-	Run: runSessionStart,
-}
+  {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "jq=ok uv=ok vibe.json=ok"}}`,
+		Run: func(cmd *cobra.Command, args []string) {
+			// Read stdin (ignore parse errors - always continue)
+			stdinData, _ := io.ReadAll(os.Stdin)
+			_ = stdinData
 
-func init() {
-	rootCmd.AddCommand(sessionStartCmd)
-}
+			var checks []string
 
-func runSessionStart(cmd *cobra.Command, args []string) {
-	// Read stdin (ignore parse errors - always continue)
-	stdinData, _ := io.ReadAll(os.Stdin)
-	_ = stdinData // input parsing not needed for env validation
+			// Check jq
+			if _, err := exec.LookPath("jq"); err != nil {
+				checks = append(checks, "jq=missing(warning)")
+			} else {
+				checks = append(checks, "jq=ok")
+			}
 
-	projectDir := cfg.ProjectDir
+			// Check uv
+			if _, err := exec.LookPath("uv"); err != nil {
+				checks = append(checks, "uv=missing(warning)")
+			} else {
+				checks = append(checks, "uv=ok")
+			}
 
-	var checks []string
+			// Check vibe.json
+			if deps.VibeConf != nil {
+				checks = append(checks, "vibe.json=ok")
+			} else {
+				checks = append(checks, "vibe.json=missing(warning)")
+			}
 
-	// Check jq
-	if _, err := exec.LookPath("jq"); err != nil {
-		checks = append(checks, "jq=missing(warning)")
-	} else {
-		checks = append(checks, "jq=ok")
-	}
+			context := strings.Join(checks, " ")
 
-	// Check uv
-	if _, err := exec.LookPath("uv"); err != nil {
-		checks = append(checks, "uv=missing(warning)")
-	} else {
-		checks = append(checks, "uv=ok")
-	}
+			output := map[string]any{
+				"hookSpecificOutput": map[string]any{
+					"hookEventName":     "SessionStart",
+					"additionalContext": context,
+				},
+			}
 
-	// Check guard.json
-	guardPaths := []string{
-		filepath.Join(projectDir, ".claude", "guard.json"),
-		filepath.Join(projectDir, "guard.json"),
-	}
-	guardFound := false
-	for _, p := range guardPaths {
-		if _, err := os.Stat(p); err == nil {
-			guardFound = true
-			break
-		}
-	}
-	if guardFound {
-		checks = append(checks, "guard.json=ok")
-	} else {
-		checks = append(checks, "guard.json=missing(warning)")
-	}
+			data, err := json.Marshal(output)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "failed to marshal output: %v\n", err)
+				os.Exit(0)
+			}
 
-	context := strings.Join(checks, " ")
+			fmt.Println(string(data))
 
-	output := map[string]interface{}{
-		"hookSpecificOutput": map[string]interface{}{
-			"hookEventName":     "SessionStart",
-			"additionalContext": context,
+			// Notify session start
+			event := newEvent(deps.Cfg.SessionID, notification.EventSessionStart, "Session started: "+context)
+			dispatchAndWait(deps.Notif, event)
+
+			os.Exit(0)
 		},
 	}
-
-	data, err := json.Marshal(output)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to marshal output: %v\n", err)
-		os.Exit(0)
-	}
-
-	fmt.Println(string(data))
-	os.Exit(0)
 }

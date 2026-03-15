@@ -2,49 +2,35 @@
 package cli
 
 import (
-	"os"
-
-	"github.com/spf13/cobra"
-
-	"github.com/neurumaru/blueprint-vibe/claude-plugin/internal/infrastructure/config"
+	"github.com/SeonjunK/claude-code-settings/tools/internal/application/notifier"
+	"github.com/SeonjunK/claude-code-settings/tools/internal/infrastructure/config"
 )
 
-var (
-	cfg *config.Config
-)
-
-// rootCmd represents the base command when called without any subcommands.
-var rootCmd = &cobra.Command{
-	Use:   "claude-code-hooks",
-	Short: "Claude Code hooks CLI for session management",
-	Long: `Claude Code hooks CLI provides hook handlers and utilities
-for managing Claude Code sessions and team orchestration.
-
-Hook commands (called by Claude Code):
-  claude-code-hooks stop                Handle stop hook
-  claude-code-hooks user-prompt-submit Handle user-prompt-submit hook
-  claude-code-hooks post-tool-use      Handle post-tool-use hook (formatting)
-
-Utility commands:
-  claude-code-hooks start <goal>      Start a new session
-  claude-code-hooks status            Show session status
-  claude-code-hooks stop-session      Stop current session
-  claude-code-hooks verify            Run verification`,
+// Deps holds shared dependencies for all CLI commands.
+type Deps struct {
+	Cfg      *config.Config
+	VibeConf *config.VibeConfig
+	Notif    *notifier.Notifier
 }
 
-// Execute runs the CLI.
-func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
-		os.Exit(1)
-	}
-}
-
-func init() {
-	cfg = config.Load()
+// InitDeps creates and initializes shared dependencies.
+func InitDeps() *Deps {
+	cfg := config.Load()
 
 	// Ensure sessions directory exists
-	if err := cfg.EnsureSessionsDir(); err != nil {
-		// Non-fatal, will be created on demand
+	_ = cfg.EnsureSessionsDir()
+
+	// Load unified vibe.json config (optional)
+	vibeConf, _ := config.LoadVibeConfig(cfg.ProjectDir)
+
+	var n *notifier.Notifier
+	if vibeConf != nil && vibeConf.HasAnyProvider() {
+		n = buildNotifier(vibeConf)
+	}
+
+	return &Deps{
+		Cfg:      cfg,
+		VibeConf: vibeConf,
+		Notif:    n,
 	}
 }

@@ -1,0 +1,8 @@
+{
+  "name": "vibe-guard",
+  "description": "File and command access control guard for Claude Code",
+  "version": "1.0.0",
+  "author": {
+    "name": "seonjunk"
+  }
+}

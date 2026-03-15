@@ -1,0 +1,8 @@
+{
+  "name": "vibe-loops",
+  "description": "Team-loops session management, notifications, and Telegram bot",
+  "version": "1.0.0",
+  "author": {
+    "name": "seonjunk"
+  }
+}

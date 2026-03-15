@@ -1,0 +1,8 @@
+{
+  "name": "vibe-verify",
+  "description": "Verification pipeline and environment checks for Claude Code",
+  "version": "1.0.0",
+  "author": {
+    "name": "seonjunk"
+  }
+}

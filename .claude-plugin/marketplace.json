@@ -1,11 +1,29 @@
 {
-  "name": "blueprint-vibe-hooks",
-  "owner": { "name": "SeonjunK" },
+  "name": "seonjunk",
+  "owner": { "name": "seonjunk" },
   "plugins": [
     {
-      "name": "blueprint-vibe-hooks",
-      "source": "./",
-      "description": "Go-based Claude Code hooks: guard system, session management, Python verification",
+      "name": "vibe-guard",
+      "source": "./vibe-guard",
+      "description": "File and command access control guard for Claude Code",
+      "version": "1.0.0"
+    },
+    {
+      "name": "vibe-format",
+      "source": "./vibe-format",
+      "description": "Auto-formatting hook for Go and Python files",
+      "version": "1.0.0"
+    },
+    {
+      "name": "vibe-verify",
+      "source": "./vibe-verify",
+      "description": "Verification pipeline and environment checks for Claude Code",
+      "version": "1.0.0"
+    },
+    {
+      "name": "vibe-loops",
+      "source": "./vibe-loops",
+      "description": "Team-loops session management, notifications, and Telegram bot",
       "version": "1.0.0"
     }
   ]

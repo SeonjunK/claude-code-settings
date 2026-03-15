@@ -8,14 +8,18 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/neurumaru/blueprint-vibe/claude-plugin/internal/application/hook"
+	"github.com/SeonjunK/claude-code-settings/tools/internal/application/hook"
+	"github.com/SeonjunK/claude-code-settings/tools/internal/domain/notification"
 )
 
-// preToolUseCmd represents the pre-tool-use hook command.
-var preToolUseCmd = &cobra.Command{
-	Use:   "pre-tool-use",
-	Short: "Handle pre-tool-use hook for guard checks",
-	Long: `Handle pre-tool-use hook by checking guard rules before tool execution.
+// NewPreToolUseCmd creates the pre-tool-use hook command.
+func NewPreToolUseCmd(deps *Deps) *cobra.Command {
+	var tool string
+
+	cmd := &cobra.Command{
+		Use:   "pre-tool-use",
+		Short: "Handle pre-tool-use hook for guard checks",
+		Long: `Handle pre-tool-use hook by checking guard rules before tool execution.
 
 Reads hook input from stdin and outputs deny decision if blocked.
 
@@ -32,74 +36,74 @@ Output (blocked):
   {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny"}, "systemMessage": "..."}
 Output (allowed):
   (empty, exit 0)`,
-	Run: runPreToolUse,
-}
+		Run: func(cmd *cobra.Command, args []string) {
+			stdinData, err := io.ReadAll(os.Stdin)
+			if err != nil || len(stdinData) == 0 {
+				os.Exit(0)
+			}
 
-var preToolUseTool string
+			var input struct {
+				ToolName  string                 `json:"tool_name"`
+				ToolInput map[string]interface{} `json:"tool_input"`
+			}
+			if err := json.Unmarshal(stdinData, &input); err != nil {
+				os.Exit(0)
+			}
 
-func init() {
-	preToolUseCmd.Flags().StringVar(&preToolUseTool, "tool", "", "tool type: Read, Write, or Bash")
-	rootCmd.AddCommand(preToolUseCmd)
-}
+			// No vibe.json or no guard rules - allow all
+			if deps.VibeConf == nil || !deps.VibeConf.HasGuard() {
+				os.Exit(0)
+			}
 
-func runPreToolUse(cmd *cobra.Command, args []string) {
-	stdinData, err := io.ReadAll(os.Stdin)
-	if err != nil || len(stdinData) == 0 {
-		os.Exit(0)
+			guard := &deps.VibeConf.Guard
+
+			t := tool
+			if t == "" {
+				t = input.ToolName
+			}
+
+			var blockMsg string
+
+			switch t {
+			case "Read":
+				filePath := extractStringField(input.ToolInput, "file_path")
+				if filePath != "" {
+					blockMsg = hook.CheckFileAccess(guard, "read", filePath)
+				}
+			case "Write", "Edit", "MultiEdit":
+				filePath := extractStringField(input.ToolInput, "file_path")
+				if filePath == "" {
+					filePath = extractStringField(input.ToolInput, "path")
+				}
+				if filePath != "" {
+					blockMsg = hook.CheckFileAccess(guard, "write", filePath)
+				}
+			case "Bash":
+				command := extractStringField(input.ToolInput, "command")
+				if command != "" {
+					blockMsg = hook.CheckBashCommand(guard, command)
+				}
+			}
+
+			if blockMsg != "" {
+				output := hook.DenyOutput(blockMsg)
+				data, _ := json.Marshal(output)
+				fmt.Println(string(data))
+
+				// Notify guard deny
+				event := newEvent(deps.Cfg.SessionID, notification.EventGuardDeny, blockMsg)
+				event.Details = map[string]string{"tool": t}
+				dispatchAndWait(deps.Notif, event)
+
+				os.Exit(2) // non-zero to trigger deny
+			}
+
+			os.Exit(0)
+		},
 	}
 
-	var input struct {
-		ToolName  string                 `json:"tool_name"`
-		ToolInput map[string]interface{} `json:"tool_input"`
-	}
-	if err := json.Unmarshal(stdinData, &input); err != nil {
-		os.Exit(0)
-	}
-
-	projectDir := cfg.ProjectDir
-
-	guardCfg, err := hook.LoadGuardConfig(projectDir)
-	if err != nil {
-		// guard.json not found - allow all
-		os.Exit(0)
-	}
-
-	tool := preToolUseTool
-	if tool == "" {
-		tool = input.ToolName
-	}
-
-	var blockMsg string
-
-	switch tool {
-	case "Read":
-		filePath := extractStringField(input.ToolInput, "file_path")
-		if filePath != "" {
-			blockMsg = hook.CheckFileAccess(guardCfg, "read", filePath)
-		}
-	case "Write", "Edit", "MultiEdit":
-		filePath := extractStringField(input.ToolInput, "file_path")
-		if filePath == "" {
-			filePath = extractStringField(input.ToolInput, "path")
-		}
-		if filePath != "" {
-			blockMsg = hook.CheckFileAccess(guardCfg, "write", filePath)
-		}
-	case "Bash":
-		command := extractStringField(input.ToolInput, "command")
-		if command != "" {
-			blockMsg = hook.CheckBashCommand(guardCfg, command)
-		}
-	}
-
-	if blockMsg != "" {
-		output := hook.DenyOutput(blockMsg)
-		data, _ := json.Marshal(output)
-		fmt.Println(string(data))
-		os.Exit(2) // non-zero to trigger deny
-	}
-
-	os.Exit(0)
+	cmd.Flags().StringVar(&tool, "tool", "", "tool type: Read, Write, or Bash")
+	return cmd
 }
 
 func extractStringField(m map[string]interface{}, key string) string {

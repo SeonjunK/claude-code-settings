@@ -1,0 +1,16 @@
+{
+  "description": "vibe-format: auto-format Go/Python files on write",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/vibe-format post-tool-use"
+          }
+        ]
+      }
+    ]
+  }
+}

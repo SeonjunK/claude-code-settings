@@ -1,0 +1,31 @@
+{
+  "notifications": {
+    "telegram": {
+      "enabled": false,
+      "botToken": "${TELEGRAM_BOT_TOKEN}",
+      "chatId": "${TELEGRAM_CHAT_ID}"
+    },
+    "slack": {
+      "enabled": false,
+      "webhookUrl": "${SLACK_WEBHOOK_URL}",
+      "channel": "#claude-notifications"
+    },
+    "webhook": {
+      "enabled": false,
+      "url": "",
+      "headers": {}
+    },
+    "events": {
+      "filters": {
+        "session_start": ["telegram"],
+        "session_stop": ["telegram", "slack"],
+        "iteration": ["telegram"],
+        "verify_pass": ["telegram"],
+        "verify_fail": ["telegram", "slack"],
+        "task_complete": ["telegram"],
+        "task_blocked": ["telegram", "slack"],
+        "guard_deny": ["telegram", "webhook"]
+      }
+    }
+  }
+}

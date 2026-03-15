@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/neurumaru/blueprint-vibe/claude-plugin/internal/domain/session"
-	"github.com/neurumaru/blueprint-vibe/claude-plugin/internal/infrastructure/storage"
+	"github.com/SeonjunK/claude-code-settings/tools/internal/domain/session"
+	"github.com/SeonjunK/claude-code-settings/tools/internal/infrastructure/storage"
 )
 
 // StopHandler handles stop hooks.

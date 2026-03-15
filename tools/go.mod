@@ -1,4 +1,4 @@
-module github.com/neurumaru/blueprint-vibe/claude-plugin
+module github.com/SeonjunK/claude-code-settings/tools
 
 go 1.26.0
 

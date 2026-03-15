@@ -1,0 +1,14 @@
+{
+  "guard": {
+    "read": {
+      "blockedPatterns": [".env*", "*.pem", "*.key"]
+    },
+    "write": {
+      "blockedPatterns": [".env*", "*.pem", "*.key"]
+    },
+    "bash": {
+      "blockedCommands": ["rm -rf /", "rm -rf /*"],
+      "blockedPatterns": ["git push --force", "git push -f", "drop table", "truncate table"]
+    }
+  }
+}

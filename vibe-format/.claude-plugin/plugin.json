@@ -1,0 +1,8 @@
+{
+  "name": "vibe-format",
+  "description": "Auto-formatting hook for Go and Python files",
+  "version": "1.0.0",
+  "author": {
+    "name": "seonjunk"
+  }
+}
