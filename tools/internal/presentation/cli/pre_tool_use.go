@@ -23,22 +23,16 @@ func NewPreToolUseCmd(deps *Deps) *cobra.Command {
 
 Reads hook input from stdin and outputs deny decision if blocked.
 
-Input stdin:
-  {"session_id": "...", "tool_name": "Read", "tool_input": {"file_path": "..."}}
-  {"session_id": "...", "tool_name": "Bash", "tool_input": {"command": "rm -rf ..."}}
-
-Flags:
-  --tool Read   Check file read access
-  --tool Write  Check file write access
-  --tool Bash   Check bash command
-
 Output (blocked):
   {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny"}, "systemMessage": "..."}
 Output (allowed):
   (empty, exit 0)`,
 		Run: func(cmd *cobra.Command, args []string) {
+			deps.Log.Debug("pre-tool-use: command started", "tool_flag", tool)
+
 			stdinData, err := io.ReadAll(os.Stdin)
 			if err != nil || len(stdinData) == 0 {
+				deps.Log.Debug("pre-tool-use: no stdin, allowing")
 				os.Exit(0)
 			}
 
@@ -47,11 +41,15 @@ Output (allowed):
 				ToolInput map[string]interface{} `json:"tool_input"`
 			}
 			if err := json.Unmarshal(stdinData, &input); err != nil {
+				deps.Log.Warn("pre-tool-use: invalid json stdin", "err", err)
 				os.Exit(0)
 			}
 
+			deps.Log.Debug("pre-tool-use: parsed input", "tool_name", input.ToolName)
+
 			// No vibe.json or no guard rules - allow all
 			if deps.VibeConf == nil || !deps.VibeConf.HasGuard() {
+				deps.Log.Debug("pre-tool-use: no guard config, allowing")
 				os.Exit(0)
 			}
 
@@ -86,18 +84,19 @@ Output (allowed):
 			}
 
 			if blockMsg != "" {
+				deps.Log.Warn("pre-tool-use: DENIED", "tool", t, "reason", blockMsg)
 				output := hook.DenyOutput(blockMsg)
 				data, _ := json.Marshal(output)
 				fmt.Println(string(data))
 
-				// Notify guard deny
 				event := newEvent(deps.Cfg.SessionID, notification.EventGuardDeny, blockMsg)
 				event.Details = map[string]string{"tool": t}
 				dispatchAndWait(deps.Notif, event)
 
-				os.Exit(2) // non-zero to trigger deny
+				os.Exit(2)
 			}
 
+			deps.Log.Debug("pre-tool-use: allowed", "tool", t)
 			os.Exit(0)
 		},
 	}

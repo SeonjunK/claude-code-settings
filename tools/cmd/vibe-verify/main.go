@@ -10,6 +10,7 @@ import (
 
 func main() {
 	deps := cli.InitDeps()
+	defer deps.Close()
 	root := &cobra.Command{Use: "vibe-verify", Short: "Verification pipeline and environment checks"}
 	root.AddCommand(cli.NewSessionStartCmd(deps))
 	root.AddCommand(cli.NewVerifyCmd(deps))

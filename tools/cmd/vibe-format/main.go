@@ -10,6 +10,7 @@ import (
 
 func main() {
 	deps := cli.InitDeps()
+	defer deps.Close()
 	root := &cobra.Command{Use: "vibe-format", Short: "Auto-format hook for Go/Python files"}
 	root.AddCommand(cli.NewPostToolUseCmd(deps))
 	if err := root.Execute(); err != nil {

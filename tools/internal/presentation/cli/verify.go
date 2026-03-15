@@ -37,16 +37,18 @@ Examples:
   vibe-verify verify --test       # Run tests only
   vibe-verify verify --typecheck  # Run type checking only`,
 		Run: func(cmd *cobra.Command, args []string) {
-			// Detect hook mode: check if stdin has JSON or --hook flag
+			deps.Log.Info("verify: command started")
+
 			stdinData, _ := storage.ReadStdin()
 			isHookMode := hookMode || (len(stdinData) > 0 && len(stdinData) < 10000 && stdinData[0] == '{')
+
+			deps.Log.Debug("verify: mode detected", "hook_mode", isHookMode, "stdin_size", len(stdinData))
 
 			if isHookMode {
 				runVerifyHook(deps, stdinData)
 				return
 			}
 
-			// Standalone mode
 			runStandaloneVerify(lint, test, typecheck, all)
 		},
 	}
@@ -62,7 +64,6 @@ Examples:
 func runVerifyHook(deps *Deps, stdinData []byte) {
 	projectDir := deps.Cfg.ProjectDir
 
-	// Parse transcript path from stdin
 	var input struct {
 		TranscriptPath string `json:"transcript_path"`
 		SessionID      string `json:"session_id"`
@@ -76,18 +77,23 @@ func runVerifyHook(deps *Deps, stdinData []byte) {
 		projectDir = input.Cwd
 	}
 
-	// Parse transcript to find changed files
+	deps.Log.Debug("verify-hook: parsing transcript", "transcript_path", input.TranscriptPath, "project_dir", projectDir)
+
 	delta := parseTranscript(input.TranscriptPath, projectDir)
 
 	if !delta.HasChanges {
+		deps.Log.Info("verify-hook: no changes to verify")
 		output := hook.SystemMessageOutput("✓ No code or hook changes to verify")
 		data, _ := json.Marshal(output)
 		fmt.Println(string(data))
 		return
 	}
 
-	// Run verification pipeline
+	deps.Log.Info("verify-hook: running pipeline", "files", len(delta.Files), "python", len(delta.PythonFiles), "shell", len(delta.ShellFiles), "json", len(delta.JSONFiles))
+
 	decision, reason, message := runVerificationPipeline(delta, projectDir)
+
+	deps.Log.Info("verify-hook: pipeline result", "decision", decision, "reason", reason)
 
 	var output map[string]any
 	if decision == "block" {
@@ -99,7 +105,6 @@ func runVerifyHook(deps *Deps, stdinData []byte) {
 	data, _ := json.Marshal(output)
 	fmt.Println(string(data))
 
-	// Notify verify result
 	if decision == "block" {
 		event := newEvent(deps.Cfg.SessionID, notification.EventVerifyFail, message)
 		event.Details = map[string]string{"reason": reason}
@@ -132,7 +137,6 @@ func parseTranscript(transcriptPath, projectDir string) transcriptDelta {
 		return delta
 	}
 
-	// Parse transcript as JSON array
 	var entries []json.RawMessage
 	if err := json.Unmarshal(data, &entries); err != nil {
 		return delta
@@ -174,7 +178,6 @@ func parseTranscript(transcriptPath, projectDir string) transcriptDelta {
 			if fp == "" {
 				continue
 			}
-			// Make relative
 			if projectDir != "" && len(fp) > len(projectDir) && fp[:len(projectDir)] == projectDir {
 				fp = fp[len(projectDir)+1:]
 			}
@@ -198,7 +201,6 @@ func parseTranscript(transcriptPath, projectDir string) transcriptDelta {
 }
 
 func runVerificationPipeline(delta transcriptDelta, projectDir string) (decision, reason, message string) {
-	// 1. Shell syntax check
 	for _, fp := range delta.ShellFiles {
 		target := fp
 		if !endsWith(target, "/") && target[0] != '/' {
@@ -212,7 +214,6 @@ func runVerificationPipeline(delta transcriptDelta, projectDir string) (decision
 		}
 	}
 
-	// 2. JSON validation
 	for _, fp := range delta.JSONFiles {
 		target := fp
 		if target[0] != '/' {
@@ -230,7 +231,6 @@ func runVerificationPipeline(delta transcriptDelta, projectDir string) (decision
 		}
 	}
 
-	// 3. Python checks (only if python files changed)
 	if len(delta.PythonFiles) == 0 {
 		return "approve", "", "✓ Validation passed for changed shell/JSON files"
 	}
@@ -255,7 +255,6 @@ func runVerificationPipeline(delta transcriptDelta, projectDir string) (decision
 		return "block", "Type check failed", "⚠ Type check failed. Run `uv run mypy apps packages/python --config-file pyproject.toml` to see details."
 	}
 
-	// pytest
 	c := exec.Command("uv", "run", "pytest", "--no-cov", "-q")
 	c.Dir = projectDir
 	testOut, _ := c.CombinedOutput()

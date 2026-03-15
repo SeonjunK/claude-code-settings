@@ -22,56 +22,63 @@ func NewUserPromptSubmitCmd(deps *Deps) *cobra.Command {
 This command is triggered when a user submits a prompt.
 It checks if the prompt is a /team-loops command and initializes the session.
 
-Reads hook input from stdin and outputs JSON response.
 Exit codes:
   0 - allow command
   1 - block command
   2 - error`,
 		Run: func(cmd *cobra.Command, args []string) {
-			// Read input from stdin
+			deps.Log.Debug("user-prompt-submit: command started")
+
 			input, err := storage.ReadStdin()
 			if err != nil {
+				deps.Log.Error("user-prompt-submit: stdin read failed", "err", err)
 				fmt.Fprintln(os.Stderr, hook.ErrorOutput("failed to read stdin"))
 				os.Exit(2)
 			}
 
-			// Parse input
 			parsed, err := hook.ParseUserPromptSubmitInput(input)
 			if err != nil {
+				deps.Log.Warn("user-prompt-submit: parse failed, allowing", "err", err)
 				fmt.Println(hook.AllowOutput())
 				os.Exit(0)
 			}
 
-			// Use session ID from config if not in input
 			if parsed.SessionID == "" {
 				parsed.SessionID = deps.Cfg.SessionID
 			}
 
-			// Handle using application layer
+			deps.Log.Debug("user-prompt-submit: parsed",
+				"session_id", parsed.SessionID,
+				"prompt_prefix", truncate(parsed.Prompt, 80),
+			)
+
 			handler := hook.NewUserPromptSubmitHandler(deps.Cfg.SessionsDir)
 			output, err := handler.Handle(parsed, generateSessionID)
 			if err != nil {
+				deps.Log.Error("user-prompt-submit: handler failed", "err", err)
 				fmt.Fprintln(os.Stderr, hook.ErrorOutput(err.Error()))
 				os.Exit(2)
 			}
 
-			// Output JSON
 			jsonOutput, err := output.ToJSON()
 			if err != nil {
+				deps.Log.Error("user-prompt-submit: marshal failed", "err", err)
 				fmt.Fprintln(os.Stderr, hook.ErrorOutput("failed to serialize output"))
 				os.Exit(2)
 			}
 
 			fmt.Println(string(jsonOutput))
 
+			deps.Log.Info("user-prompt-submit: result", "action", output.Action)
+
 			// Notify if this was a /team-loops command
 			if strings.HasPrefix(parsed.Prompt, "/team-loops") {
 				event := newEvent(deps.Cfg.SessionID, notification.EventSessionStart, "Team-loops session created")
 				event.Details = map[string]string{"prompt": parsed.Prompt}
 				dispatchAndWait(deps.Notif, event)
+				deps.Log.Info("user-prompt-submit: team-loops notification sent")
 			}
 
-			// Exit with appropriate code
 			switch output.Action {
 			case "block":
 				os.Exit(1)
@@ -82,4 +89,11 @@ Exit codes:
 			}
 		},
 	}
+}
+
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
 }

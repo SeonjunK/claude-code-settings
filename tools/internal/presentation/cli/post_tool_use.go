@@ -25,23 +25,17 @@ func NewPostToolUseCmd(deps *Deps) *cobra.Command {
 		Short: "Handle post-tool-use hook for formatting",
 		Long: `Handle post-tool-use hook by formatting files using appropriate formatters.
 
-This command is designed to be called from Claude Code's post-tool-use hook.
-It reads hook input from stdin and formats modified files.
-
 For Go files: uses gofmt
-For Python files: uses ruff format (if available) or black
-
-Examples:
-  vibe-format post-tool-use              # Format from stdin (hook mode)
-  vibe-format post-tool-use file.go      # Format specific file`,
+For Python files: uses ruff format (if available) or black`,
 		Run: func(cmd *cobra.Command, args []string) {
+			deps.Log.Debug("post-tool-use: command started")
+
 			// Try to read stdin for hook input
 			stdinData, stdinErr := storage.ReadStdin()
 
 			var filePath string
 
 			if stdinErr == nil && len(stdinData) > 0 {
-				// Parse hook input from stdin
 				var input struct {
 					ToolName  string                 `json:"tool_name"`
 					ToolInput map[string]interface{} `json:"tool_input"`
@@ -55,7 +49,6 @@ Examples:
 				}
 			}
 
-			// Fallback to args if no stdin file path
 			files := args
 			if filePath != "" {
 				files = []string{filePath}
@@ -64,7 +57,8 @@ Examples:
 				files = []string{"."}
 			}
 
-			// Group by file type
+			deps.Log.Debug("post-tool-use: formatting", "files", files)
+
 			goFiles := []string{}
 			pyFiles := []string{}
 
@@ -76,24 +70,24 @@ Examples:
 				}
 			}
 
-			// If stdin specified a single non-Go/Python file - nothing to format
 			if filePath != "" && !endsWith(filePath, ".go") && !endsWith(filePath, ".py") {
+				deps.Log.Debug("post-tool-use: not a Go/Python file, skipping", "file", filePath)
 				os.Exit(0)
 			}
 
 			hasErrors := false
 
-			// Format Go files
 			if len(goFiles) > 0 {
 				if err := formatGoFiles(goFiles, check, diff); err != nil {
+					deps.Log.Error("post-tool-use: Go format error", "err", err, "files", goFiles)
 					fmt.Fprintf(os.Stderr, "Go format error: %v\n", err)
 					hasErrors = true
 				}
 			}
 
-			// Format Python files
 			if len(pyFiles) > 0 || (filePath == "" && len(args) == 0) {
 				if err := formatPythonFiles(pyFiles, check, diff); err != nil {
+					deps.Log.Error("post-tool-use: Python format error", "err", err, "files", pyFiles)
 					fmt.Fprintf(os.Stderr, "Python format error: %v\n", err)
 					hasErrors = true
 				}
@@ -105,6 +99,8 @@ Examples:
 				fmt.Println(string(data))
 				os.Exit(1)
 			}
+
+			deps.Log.Debug("post-tool-use: completed")
 		},
 	}
 
@@ -138,7 +134,6 @@ func formatPythonFiles(files []string, check, diff bool) error {
 		files = []string{"."}
 	}
 
-	// Try ruff first
 	if _, err := exec.LookPath("ruff"); err == nil {
 		args := []string{"format"}
 		if check {
@@ -155,7 +150,6 @@ func formatPythonFiles(files []string, check, diff bool) error {
 		return cmd.Run()
 	}
 
-	// Fallback to black
 	if _, err := exec.LookPath("black"); err == nil {
 		args := []string{}
 		if check {

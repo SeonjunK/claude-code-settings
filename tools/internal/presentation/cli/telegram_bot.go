@@ -37,10 +37,11 @@ Examples:
   vibe-loops telegram-bot
   vibe-loops telegram-bot --token $BOT_TOKEN --chat-id $CHAT_ID`,
 		Run: func(cmd *cobra.Command, args []string) {
+			deps.Log.Info("telegram-bot: starting")
+
 			t := token
 			c := chatID
 
-			// Fall back to vibe.json config
 			if t == "" && deps.VibeConf != nil {
 				t = deps.VibeConf.Notifications.Telegram.BotToken
 			}
@@ -49,6 +50,7 @@ Examples:
 			}
 
 			if t == "" || c == "" {
+				deps.Log.Error("telegram-bot: missing token or chat_id")
 				fmt.Fprintln(os.Stderr, "Telegram botToken and chatId are required.")
 				fmt.Fprintln(os.Stderr, "Set them in vibe.json or use --token and --chat-id flags.")
 				os.Exit(1)
@@ -57,11 +59,14 @@ Examples:
 			ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 			defer cancel()
 
+			deps.Log.Info("telegram-bot: running", "chat_id", c)
 			bot := telegram.NewBot(t, c, deps.Cfg.SessionsDir, deps.Cfg.ProjectDir)
 			if err := bot.Run(ctx); err != nil && err != context.Canceled {
+				deps.Log.Error("telegram-bot: error", "err", err)
 				fmt.Fprintf(os.Stderr, "Bot error: %v\n", err)
 				os.Exit(1)
 			}
+			deps.Log.Info("telegram-bot: stopped")
 		},
 	}
 

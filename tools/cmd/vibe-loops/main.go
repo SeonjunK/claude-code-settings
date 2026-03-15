@@ -10,6 +10,7 @@ import (
 
 func main() {
 	deps := cli.InitDeps()
+	defer deps.Close()
 	root := &cobra.Command{Use: "vibe-loops", Short: "Team-loops session management, notifications, and bot"}
 	root.AddCommand(cli.NewStopCmd(deps))
 	root.AddCommand(cli.NewUserPromptSubmitCmd(deps))

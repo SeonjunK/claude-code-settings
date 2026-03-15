@@ -27,9 +27,15 @@ Input stdin: {"session_id": "...", "source": "startup|resume|...", ...}
 Output (always exit 0):
   {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "jq=ok uv=ok vibe.json=ok"}}`,
 		Run: func(cmd *cobra.Command, args []string) {
+			deps.Log.Info("session-start: command started")
+
 			// Read stdin (ignore parse errors - always continue)
-			stdinData, _ := io.ReadAll(os.Stdin)
-			_ = stdinData
+			stdinData, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				deps.Log.Warn("session-start: stdin read error", "err", err)
+			} else {
+				deps.Log.Debug("session-start: stdin received", "size", len(stdinData))
+			}
 
 			var checks []string
 
@@ -55,6 +61,7 @@ Output (always exit 0):
 			}
 
 			context := strings.Join(checks, " ")
+			deps.Log.Info("session-start: env checks done", "result", context)
 
 			output := map[string]any{
 				"hookSpecificOutput": map[string]any{
@@ -65,6 +72,7 @@ Output (always exit 0):
 
 			data, err := json.Marshal(output)
 			if err != nil {
+				deps.Log.Error("session-start: marshal failed", "err", err)
 				fmt.Fprintf(os.Stderr, "failed to marshal output: %v\n", err)
 				os.Exit(0)
 			}
@@ -74,6 +82,7 @@ Output (always exit 0):
 			// Notify session start
 			event := newEvent(deps.Cfg.SessionID, notification.EventSessionStart, "Session started: "+context)
 			dispatchAndWait(deps.Notif, event)
+			deps.Log.Info("session-start: completed")
 
 			os.Exit(0)
 		},
