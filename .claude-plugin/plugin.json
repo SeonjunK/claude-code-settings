@@ -1,0 +1,8 @@
+{
+  "name": "blueprint-vibe-hooks",
+  "description": "Go-based Claude Code hooks: guard system, session management, Python verification",
+  "version": "1.0.0",
+  "author": {
+    "name": "neurumaru"
+  }
+}

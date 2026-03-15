@@ -1,0 +1,12 @@
+{
+  "name": "blueprint-vibe-hooks",
+  "owner": { "name": "SeonjunK" },
+  "plugins": [
+    {
+      "name": "blueprint-vibe-hooks",
+      "source": "./",
+      "description": "Go-based Claude Code hooks: guard system, session management, Python verification",
+      "version": "1.0.0"
+    }
+  ]
+}
